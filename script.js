@@ -24,20 +24,20 @@ const owners = ["Asha Rao", "Ravi Menon", "Priya K", "Naveen B", "Meera D", "Kar
 const FIELD_DEFINITIONS = {
   case_id: { labels: ["case id", "case_id", "caseid", "ticket id", "ticketid", "complaint id", "case number"], defaultValue: "Not Available" },
   date: { labels: ["date", "case date", "created date", "created on", "complaint date", "ticket date"], defaultValue: "Not Available" },
-  customer_name: { labels: ["customer name", "customer_name", "customer", "name", "customername"], defaultValue: "Not Available" },
+  customer_name: { labels: ["customer name", "customer_name", "customer", "name", "customername", "customer name(s)", "customer"], defaultValue: "Not Available" },
   mobile_number: { labels: ["mobile number", "mobile", "phone", "mobile no", "contact number", "contact"], defaultValue: "Not Available" },
-  vehicle_registration_number: { labels: ["vehicle registration number", "registration number", "reg no", "vehicle reg no", "reg number", "vehicle registration"], defaultValue: "Not Available" },
+  vehicle_registration_number: { labels: ["vehicle registration number", "registration number", "reg no", "vehicle reg no", "reg number", "vehicle registration", "vehicle number", "registration", "vehicle reg"], defaultValue: "Not Available" },
   vehicle_model: { labels: ["vehicle model", "model", "vehicle", "car model"], defaultValue: "Not Available" },
-  branch: { labels: ["branch", "sales branch", "branch name"], defaultValue: "Unknown Branch" },
-  service_centre: { labels: ["service centre", "service center", "service_centre", "service center name", "service centre name"], defaultValue: "Not Assigned" },
-  complaint_category: { labels: ["complaint category", "category", "issue type", "reason"], defaultValue: "Not Available" },
+  branch: { labels: ["branch", "branch name", "sales branch", "dealer branch", "location", "branch location", "branchname"], defaultValue: "Not Available" },
+  service_centre: { labels: ["service centre", "service center", "service_centre", "service center name", "service centre name", "workshop", "workshop name", "servicecentre", "servicecenter"], defaultValue: "Not Available" },
+  complaint_category: { labels: ["complaint category", "category", "issue type", "reason", "complaint type", "complaintcategory"], defaultValue: "Not Available" },
   complaint_description: { labels: ["complaint description", "description", "issue description", "details", "remarks", "customer complaint"], defaultValue: "Not Available" },
   priority: { labels: ["priority", "urgency"], defaultValue: "Not Available" },
   case_owner: { labels: ["case owner", "owner", "assigned to", "case handler", "agent"], defaultValue: "Not Available" },
-  status: { labels: ["case status", "status", "ticket status", "current status"], defaultValue: "Not Available" },
+  status: { labels: ["case status", "status", "ticket status", "current status", "case state"], defaultValue: "Not Available" },
   sla_status: { labels: ["sla status", "sla"], defaultValue: "Not Available" },
-  response_time: { labels: ["response time", "response time (minutes)", "response time (mins)", "response time minutes", "first response time"], defaultValue: 0 },
-  resolution_time: { labels: ["resolution time", "resolution time (hours)", "resolution time hours", "time to resolve"], defaultValue: 0 },
+  response_time: { labels: ["response time", "response time (minutes)", "response time (mins)", "response time minutes", "first response time", "response minutes", "response"], defaultValue: 0 },
+  resolution_time: { labels: ["resolution time", "resolution time (hours)", "resolution time hours", "time to resolve", "resolution hours", "resolution"], defaultValue: 0 },
   csat: { labels: ["csat score", "csat", "customer satisfaction score", "customer satisfaction"], defaultValue: 0 },
   nps: { labels: ["nps score", "nps", "net promoter score"], defaultValue: 0 },
   escalation_level: { labels: ["escalation level", "escalation"], defaultValue: "Level 0" },
@@ -55,21 +55,30 @@ const state = {
   page: 1,
   pageSize: 10,
   sourceLabel: "Sample data",
-  validationReport: null
+  validationReport: null,
+  headerMappings: []
 };
 
 function isBlankish(value) {
   if (value === null || value === undefined) return true;
   if (typeof value === "number") return Number.isNaN(value);
   const text = String(value).trim().toLowerCase();
-  return text === "" || ["undefined", "null", "nan", "n/a", "na", "not available", "not assigned", "unknown branch"].includes(text);
+  return text === "" || ["undefined", "null", "nan", "n/a", "na", "not available", "not assigned"].includes(text);
 }
 
 function normalizeHeader(value) {
   return String(value ?? "")
     .trim()
     .toLowerCase()
+    .replace(/centre/g, "center")
     .replace(/[^a-z0-9]+/g, "");
+}
+
+function headerMatchesAlias(header, alias) {
+  const normalizedHeader = normalizeHeader(header);
+  const normalizedAlias = normalizeHeader(alias);
+  if (!normalizedHeader || !normalizedAlias) return false;
+  return normalizedHeader === normalizedAlias || normalizedHeader.includes(normalizedAlias) || normalizedAlias.includes(normalizedHeader);
 }
 
 function cleanText(value, fallback = "Not Available") {
@@ -163,7 +172,7 @@ function buildValidationReport(rawRows, normalizedRows, sourceLabel) {
   rawRows.forEach((row) => Object.keys(row || {}).forEach((key) => headers.add(key)));
 
   const missingColumns = REQUIRED_FIELDS.filter((field) => {
-    return !Array.from(headers).some((header) => FIELD_DEFINITIONS[field].labels.some((alias) => normalizeHeader(alias) === normalizeHeader(header)));
+    return !Array.from(headers).some((header) => FIELD_DEFINITIONS[field].labels.some((alias) => headerMatchesAlias(header, alias)));
   });
 
   const invalidRows = [];
@@ -203,30 +212,130 @@ function prepareRows(rawRows, sourceLabel) {
 
 function normalizeFieldValue(rawRow, fieldName, fallback) {
   const config = FIELD_DEFINITIONS[fieldName];
-  const headerMap = {};
-  Object.keys(rawRow || {}).forEach((key) => {
-    headerMap[normalizeHeader(key)] = key;
-  });
+  const matchedKey = Object.keys(rawRow || {}).find((key) => config.labels.some((alias) => headerMatchesAlias(key, alias)));
 
-  for (const alias of config.labels) {
-    const matchedKey = headerMap[normalizeHeader(alias)];
-    if (matchedKey && rawRow[matchedKey] !== undefined && rawRow[matchedKey] !== null) {
-      const rawValue = rawRow[matchedKey];
-      if (isBlankish(rawValue)) return fallback;
-      if (fieldName === "date") return normalizeDate(rawValue);
-      if (fieldName === "response_time" || fieldName === "resolution_time") return safeNumber(rawValue, 0);
-      if (fieldName === "csat" || fieldName === "nps") return safeNumber(rawValue, 0);
-      if (fieldName === "priority") return normalizePriority(rawValue);
-      if (fieldName === "status") return normalizeStatus(rawValue);
-      if (fieldName === "sla_status") return normalizeSlaStatus(rawValue);
-      if (fieldName === "repeat_complaint") return normalizeRepeatComplaint(rawValue);
-      if (fieldName === "escalation_level") return normalizeEscalation(rawValue);
-      if (fieldName === "customer_type") return cleanText(rawValue, "Unknown");
-      if (typeof rawValue === "boolean") return rawValue ? "Yes" : "No";
-      return cleanText(rawValue, fallback);
-    }
+  if (matchedKey && rawRow[matchedKey] !== undefined && rawRow[matchedKey] !== null) {
+    const rawValue = rawRow[matchedKey];
+    if (isBlankish(rawValue)) return fallback;
+    if (fieldName === "date") return normalizeDate(rawValue);
+    if (fieldName === "response_time" || fieldName === "resolution_time") return safeNumber(rawValue, 0);
+    if (fieldName === "csat" || fieldName === "nps") return safeNumber(rawValue, 0);
+    if (fieldName === "priority") return normalizePriority(rawValue);
+    if (fieldName === "status") return normalizeStatus(rawValue);
+    if (fieldName === "sla_status") return normalizeSlaStatus(rawValue);
+    if (fieldName === "repeat_complaint") return normalizeRepeatComplaint(rawValue);
+    if (fieldName === "escalation_level") return normalizeEscalation(rawValue);
+    if (fieldName === "customer_type") return cleanText(rawValue, "Unknown");
+    if (typeof rawValue === "boolean") return rawValue ? "Yes" : "No";
+    return cleanText(rawValue, fallback);
   }
   return fallback;
+}
+
+function scoreHeaderRow(row) {
+  return (row || []).reduce((score, cell) => {
+    if (cell === null || cell === undefined) return score;
+    const normalizedCell = normalizeHeader(cell);
+    if (!normalizedCell) return score;
+    const matchedFields = Object.keys(FIELD_DEFINITIONS).filter((fieldName) => FIELD_DEFINITIONS[fieldName].labels.some((alias) => headerMatchesAlias(cell, alias)));
+    return score + (matchedFields.length ? 1 : 0);
+  }, 0);
+}
+
+function buildHeaderMapping(headers) {
+  return Object.keys(FIELD_DEFINITIONS).reduce((mapping, fieldName) => {
+    const matchedHeader = headers.find((header) => FIELD_DEFINITIONS[fieldName].labels.some((alias) => headerMatchesAlias(header, alias)));
+    if (matchedHeader) {
+      mapping[fieldName] = matchedHeader;
+    }
+    return mapping;
+  }, {});
+}
+
+function logHeaderMapping(sheetName, mapping) {
+  const entries = Object.entries(mapping).map(([fieldName, header]) => ({ internalField: fieldName, excelColumn: header || "—" }));
+  console.groupCollapsed(`Workbook mapping :: ${sheetName}`);
+  console.table(entries);
+  console.log("Detected worksheet:", sheetName);
+  console.groupEnd();
+}
+
+function logWorkbookDiagnostics(workbook, detectedSheet) {
+  const sheetSummaries = (workbook.SheetNames || []).map((sheetName) => {
+    const sheet = workbook.Sheets[sheetName];
+    const sheetRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+    const headerRowIndex = findHeaderRowIndex(sheetRows);
+    const headerRow = headerRowIndex >= 0 ? sheetRows[headerRowIndex] : [];
+    return {
+      sheetName,
+      headerRowIndex,
+      headerScore: scoreHeaderRow(headerRow),
+      headerRow: headerRow.slice(0, 12)
+    };
+  });
+  console.groupCollapsed("Workbook sheet audit");
+  console.table(sheetSummaries.map(({ sheetName, headerRowIndex, headerScore }) => ({ sheetName, headerRowIndex, headerScore })));
+  console.log("Selected worksheet:", detectedSheet.sheetName);
+  console.log("Selected headers:", detectedSheet.headerRow || []);
+  console.groupEnd();
+}
+
+function detectCaseDataSheet(workbook) {
+  const sheetNames = workbook.SheetNames || [];
+  const sheetCandidates = sheetNames.map((sheetName) => {
+    const sheet = workbook.Sheets[sheetName];
+    const sheetRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+    const headerRowIndex = findHeaderRowIndex(sheetRows);
+    const detectedHeader = headerRowIndex >= 0 ? sheetRows[headerRowIndex] : [];
+    const headerScore = scoreHeaderRow(detectedHeader);
+    const sheetNameHint = /case|complaint|customer|service|ticket|data/.test(normalizeHeader(sheetName)) ? 3 : 0;
+    const dataRowCount = Math.max(0, sheetRows.length - headerRowIndex - 1);
+    const combinedScore = headerScore * 3 + sheetNameHint + (dataRowCount > 0 ? 1 : 0);
+    return {
+      sheetName,
+      sheet,
+      sheetRows,
+      headerRowIndex,
+      headerScore,
+      combinedScore,
+      headerRow: detectedHeader,
+      dataRowCount
+    };
+  }).filter((candidate) => candidate.headerScore > 0 || candidate.combinedScore > 0);
+
+  const bestSheet = sheetCandidates.sort((a, b) => b.combinedScore - a.combinedScore || b.dataRowCount - a.dataRowCount)[0];
+  return bestSheet || { sheetName: sheetNames[0], sheet: workbook.Sheets[sheetNames[0]], sheetRows: [], headerRowIndex: 0, headerScore: 0, combinedScore: 0, headerRow: [], dataRowCount: 0 };
+}
+
+function findHeaderRowIndex(sheetRows) {
+  let bestRowIndex = 0;
+  let bestScore = 0;
+  sheetRows.forEach((row, index) => {
+    const score = scoreHeaderRow(row);
+    if (score > bestScore) {
+      bestScore = score;
+      bestRowIndex = index;
+    }
+  });
+  return bestScore > 0 ? bestRowIndex : 0;
+}
+
+function buildRowsFromSheet(sheet, sheetName) {
+  const sheetRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+  const headerRowIndex = findHeaderRowIndex(sheetRows);
+  const headerRow = headerRowIndex >= 0 ? sheetRows[headerRowIndex] : [];
+  const headers = (headerRow || []).map((value) => String(value ?? "").trim());
+  const dataRows = (sheetRows.slice(headerRowIndex + 1) || []).map((values) => {
+    const row = {};
+    headers.forEach((header, index) => {
+      row[header] = values[index] ?? "";
+    });
+    return row;
+  }).filter((row) => !isCompletelyEmptyRow(row));
+  const mapping = buildHeaderMapping(headers);
+  state.headerMappings = Object.entries(mapping).map(([fieldName, header]) => ({ internalField: fieldName, excelColumn: header || "—" }));
+  logHeaderMapping(sheetName, mapping);
+  return dataRows;
 }
 
 function buildNormalizedRow(rawRow, index) {
@@ -244,10 +353,10 @@ function buildNormalizedRow(rawRow, index) {
     baseRow.date = defaultDate.toISOString().split("T")[0];
   }
   if (isBlankish(baseRow.branch)) {
-    baseRow.branch = "Unknown Branch";
+    baseRow.branch = "Not Available";
   }
   if (isBlankish(baseRow.service_centre)) {
-    baseRow.service_centre = "Not Assigned";
+    baseRow.service_centre = "Not Available";
   }
   if (baseRow.nps === 0 || baseRow.nps === "0" || baseRow.nps === "Not Available") {
     const csat = safeNumber(baseRow.csat, 0);
@@ -334,7 +443,9 @@ async function parseUploadedFile(file) {
   const extension = file.name.toLowerCase();
   if (extension.endsWith(".csv")) {
     const text = await file.text();
-    return normalizeRows(parseCSV(text));
+    const rows = parseCSV(text);
+    state.headerMappings = Object.keys(rows[0] || {}).map((header) => ({ internalField: "—", excelColumn: header }));
+    return rows;
   }
   if (extension.endsWith(".xlsx") || extension.endsWith(".xls") || extension.endsWith(".xlsm")) {
     if (!window.XLSX) {
@@ -342,9 +453,9 @@ async function parseUploadedFile(file) {
     }
     const data = await file.arrayBuffer();
     const workbook = window.XLSX.read(data, { type: "array" });
-    const sheetName = workbook.SheetNames[0];
-    const rows = window.XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: "" });
-    return normalizeRows(rows);
+    const detectedSheet = detectCaseDataSheet(workbook);
+    logWorkbookDiagnostics(workbook, detectedSheet);
+    return buildRowsFromSheet(detectedSheet.sheet, detectedSheet.sheetName);
   }
   return [];
 }
@@ -426,7 +537,7 @@ function getRowValue(row, fieldName, fallback = "") {
   return value;
 }
 
-function getText(row, fieldName, fallback = "Not provided") {
+function getText(row, fieldName, fallback = "Not Available") {
   return toDisplayValue(getRowValue(row, fieldName, fallback), fallback);
 }
 
@@ -746,7 +857,7 @@ function renderCaseTable(rows, totalRows) {
   const tbody = rows.map((row) => {
     const statusClass = getText(row, "status") === "Closed" ? "closed" : getText(row, "status") === "Escalated" ? "high" : getText(row, "status") === "Pending Customer" ? "pending" : "open";
     const priorityClass = getText(row, "priority") === "Critical" || getText(row, "priority") === "High" ? "high" : "open";
-    return `<tr><td>${getText(row, "case_id", "N/A")}</td><td>${getText(row, "date", "Not provided")}</td><td>${getText(row, "customer_name", "Not provided")}</td><td>${getText(row, "mobile_number", "Not provided")}</td><td>${getText(row, "vehicle_registration_number", "Not provided")}</td><td>${getText(row, "vehicle_model", "Not provided")}</td><td>${getText(row, "branch", "Unassigned")}</td><td>${getText(row, "service_centre", "Unassigned")}</td><td>${getText(row, "complaint_category", "Uncategorized")}</td><td>${getText(row, "complaint_description", "Not provided")}</td><td><span class="badge ${priorityClass}">${getText(row, "priority", "Medium")}</span></td><td>${getText(row, "case_owner", "Unassigned")}</td><td><span class="badge ${statusClass}">${getText(row, "status", "Open")}</span></td><td>${getText(row, "sla_status", "Unknown")}</td><td>${getNumber(row, "response_time", 0)}m</td><td>${getNumber(row, "resolution_time", 0)}h</td><td>${getNumber(row, "csat", 0).toFixed(1)}/5</td><td>${getText(row, "escalation_level", "Level 0")}</td><td>${getText(row, "follow_up_status", "Pending")}</td></tr>`;
+    return `<tr><td>${getText(row, "case_id", "Not Available")}</td><td>${getText(row, "date", "Not Available")}</td><td>${getText(row, "customer_name", "Not Available")}</td><td>${getText(row, "mobile_number", "Not Available")}</td><td>${getText(row, "vehicle_registration_number", "Not Available")}</td><td>${getText(row, "vehicle_model", "Not Available")}</td><td>${getText(row, "branch", "Unknown Branch")}</td><td>${getText(row, "service_centre", "Not Assigned")}</td><td>${getText(row, "complaint_category", "Not Available")}</td><td>${getText(row, "complaint_description", "Not Available")}</td><td><span class="badge ${priorityClass}">${getText(row, "priority", "Not Available")}</span></td><td>${getText(row, "case_owner", "Not Available")}</td><td><span class="badge ${statusClass}">${getText(row, "status", "Not Available")}</span></td><td>${getText(row, "sla_status", "Not Available")}</td><td>${getNumber(row, "response_time", 0)}m</td><td>${getNumber(row, "resolution_time", 0)}h</td><td>${getNumber(row, "csat", 0).toFixed(1)}/5</td><td>${getText(row, "escalation_level", "Level 0")}</td><td>${getText(row, "follow_up_status", "Pending")}</td></tr>`;
   }).join("");
   document.getElementById("caseTable").innerHTML = `<table><thead><tr>${headers.map((header) => `<th data-key="${header.key}">${header.label}</th>`).join("")}</tr></thead><tbody>${tbody || '<tr><td colspan="19">No matching cases found.</td></tr>'}</tbody></table>`;
   document.querySelectorAll("th[data-key]").forEach((header) => {
