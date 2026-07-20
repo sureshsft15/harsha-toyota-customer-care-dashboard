@@ -22,20 +22,20 @@ const priorities = ["Low", "Medium", "High", "Critical"];
 const owners = ["Asha Rao", "Ravi Menon", "Priya K", "Naveen B", "Meera D", "Karthik V"];
 
 const FIELD_DEFINITIONS = {
-  case_id: { labels: ["case id", "case_id", "caseid", "ticket id", "ticketid", "complaint id", "case number"], defaultValue: "N/A" },
-  date: { labels: ["date", "case date", "created date", "created on", "complaint date", "ticket date"], defaultValue: "Not provided" },
-  customer_name: { labels: ["customer name", "customer_name", "customer", "name", "customername"], defaultValue: "Not provided" },
-  mobile_number: { labels: ["mobile number", "mobile", "phone", "mobile no", "contact number", "contact"], defaultValue: "Not provided" },
-  vehicle_registration_number: { labels: ["vehicle registration number", "registration number", "reg no", "vehicle reg no", "reg number", "vehicle registration"], defaultValue: "Not provided" },
-  vehicle_model: { labels: ["vehicle model", "model", "vehicle", "car model"], defaultValue: "Not provided" },
-  branch: { labels: ["branch", "sales branch", "branch name"], defaultValue: "Unassigned" },
-  service_centre: { labels: ["service centre", "service center", "service_centre", "service center name", "service centre name"], defaultValue: "Unassigned" },
-  complaint_category: { labels: ["complaint category", "category", "issue type", "reason"], defaultValue: "Uncategorized" },
-  complaint_description: { labels: ["complaint description", "description", "issue description", "details", "remarks", "customer complaint"], defaultValue: "Not provided" },
-  priority: { labels: ["priority", "urgency"], defaultValue: "Medium" },
-  case_owner: { labels: ["case owner", "owner", "assigned to", "case handler", "agent"], defaultValue: "Unassigned" },
-  status: { labels: ["case status", "status", "ticket status", "current status"], defaultValue: "Open" },
-  sla_status: { labels: ["sla status", "sla"], defaultValue: "Unknown" },
+  case_id: { labels: ["case id", "case_id", "caseid", "ticket id", "ticketid", "complaint id", "case number"], defaultValue: "Not Available" },
+  date: { labels: ["date", "case date", "created date", "created on", "complaint date", "ticket date"], defaultValue: "Not Available" },
+  customer_name: { labels: ["customer name", "customer_name", "customer", "name", "customername"], defaultValue: "Not Available" },
+  mobile_number: { labels: ["mobile number", "mobile", "phone", "mobile no", "contact number", "contact"], defaultValue: "Not Available" },
+  vehicle_registration_number: { labels: ["vehicle registration number", "registration number", "reg no", "vehicle reg no", "reg number", "vehicle registration"], defaultValue: "Not Available" },
+  vehicle_model: { labels: ["vehicle model", "model", "vehicle", "car model"], defaultValue: "Not Available" },
+  branch: { labels: ["branch", "sales branch", "branch name"], defaultValue: "Unknown Branch" },
+  service_centre: { labels: ["service centre", "service center", "service_centre", "service center name", "service centre name"], defaultValue: "Not Assigned" },
+  complaint_category: { labels: ["complaint category", "category", "issue type", "reason"], defaultValue: "Not Available" },
+  complaint_description: { labels: ["complaint description", "description", "issue description", "details", "remarks", "customer complaint"], defaultValue: "Not Available" },
+  priority: { labels: ["priority", "urgency"], defaultValue: "Not Available" },
+  case_owner: { labels: ["case owner", "owner", "assigned to", "case handler", "agent"], defaultValue: "Not Available" },
+  status: { labels: ["case status", "status", "ticket status", "current status"], defaultValue: "Not Available" },
+  sla_status: { labels: ["sla status", "sla"], defaultValue: "Not Available" },
   response_time: { labels: ["response time", "response time (minutes)", "response time (mins)", "response time minutes", "first response time"], defaultValue: 0 },
   resolution_time: { labels: ["resolution time", "resolution time (hours)", "resolution time hours", "time to resolve"], defaultValue: 0 },
   csat: { labels: ["csat score", "csat", "customer satisfaction score", "customer satisfaction"], defaultValue: 0 },
@@ -46,14 +46,24 @@ const FIELD_DEFINITIONS = {
   repeat_complaint: { labels: ["repeat complaint", "repeat_complaint", "repeat"], defaultValue: "No" }
 };
 
+const REQUIRED_FIELDS = ["customer_name", "status", "branch", "service_centre", "complaint_category", "date"];
+
 const state = {
   rows: [],
   filteredRows: [],
   sort: { key: "date", direction: "desc" },
   page: 1,
   pageSize: 10,
-  sourceLabel: "Sample data"
+  sourceLabel: "Sample data",
+  validationReport: null
 };
+
+function isBlankish(value) {
+  if (value === null || value === undefined) return true;
+  if (typeof value === "number") return Number.isNaN(value);
+  const text = String(value).trim().toLowerCase();
+  return text === "" || ["undefined", "null", "nan", "n/a", "na", "not available", "not assigned", "unknown branch"].includes(text);
+}
 
 function normalizeHeader(value) {
   return String(value ?? "")
@@ -62,14 +72,15 @@ function normalizeHeader(value) {
     .replace(/[^a-z0-9]+/g, "");
 }
 
-function cleanText(value, fallback = "Not provided") {
+function cleanText(value, fallback = "Not Available") {
   if (value === null || value === undefined) return fallback;
   const text = String(value).trim();
   return text ? text : fallback;
 }
 
 function safeNumber(value, fallback = 0) {
-  const numericValue = Number(String(value ?? "").replace(/[^0-9.-]+/g, ""));
+  if (isBlankish(value)) return fallback;
+  const numericValue = Number(String(value).replace(/[^0-9.-]+/g, ""));
   return Number.isFinite(numericValue) ? numericValue : fallback;
 }
 
@@ -78,7 +89,7 @@ function average(values) {
   return filtered.length ? filtered.reduce((sum, value) => sum + Number(value), 0) / filtered.length : 0;
 }
 
-function toDisplayValue(value, fallback = "Not provided") {
+function toDisplayValue(value, fallback = "Not Available") {
   if (value === null || value === undefined || value === "") return fallback;
   return String(value);
 }
@@ -96,41 +107,98 @@ function normalizeDate(value) {
 }
 
 function normalizeStatus(value) {
-  const text = String(value ?? "").trim().toLowerCase();
+  if (isBlankish(value)) return "Not Available";
+  const text = String(value).trim().toLowerCase();
   if (text.includes("close")) return "Closed";
   if (text.includes("escal")) return "Escalated";
   if (text.includes("progress")) return "In Progress";
-  if (text.includes("pending") && text.includes("customer")) return "Pending Customer";
+  if (text.includes("pending")) return "Pending Customer";
   if (text.includes("open")) return "Open";
-  return cleanText(value, "Open");
+  return cleanText(value, "Not Available");
 }
 
 function normalizePriority(value) {
-  const text = String(value ?? "").trim().toLowerCase();
+  if (isBlankish(value)) return "Not Available";
+  const text = String(value).trim().toLowerCase();
   if (text.includes("critical")) return "Critical";
   if (text.includes("high")) return "High";
   if (text.includes("low")) return "Low";
-  return cleanText(value, "Medium");
+  return cleanText(value, "Not Available");
 }
 
 function normalizeSlaStatus(value) {
-  const text = String(value ?? "").trim().toLowerCase();
+  if (isBlankish(value)) return "Not Available";
+  const text = String(value).trim().toLowerCase();
   if (text.includes("non")) return "Non-compliant";
   if (text.includes("near")) return "Near Miss";
-  return cleanText(value, "Compliant");
+  if (text.includes("compliant")) return "Compliant";
+  return cleanText(value, "Not Available");
 }
 
 function normalizeRepeatComplaint(value) {
-  const text = String(value ?? "").trim().toLowerCase();
+  if (isBlankish(value)) return "No";
+  const text = String(value).trim().toLowerCase();
   if (["yes", "true", "1", "repeat"].includes(text)) return "Yes";
   return "No";
 }
 
 function normalizeEscalation(value) {
   const text = String(value ?? "").trim();
-  if (!text) return "Level 0";
+  if (!text || isBlankish(value)) return "Level 0";
   if (/^level/i.test(text)) return text;
   return `Level ${text}`;
+}
+
+function isCompletelyEmptyRow(row) {
+  if (!row) return true;
+  return !Object.values(row).some((value) => {
+    if (value === null || value === undefined) return false;
+    const text = String(value).trim();
+    return text !== "" && !["undefined", "null", "nan", "n/a", "na"].includes(text.toLowerCase());
+  });
+}
+
+function buildValidationReport(rawRows, normalizedRows, sourceLabel) {
+  const headers = new Set();
+  rawRows.forEach((row) => Object.keys(row || {}).forEach((key) => headers.add(key)));
+
+  const missingColumns = REQUIRED_FIELDS.filter((field) => {
+    return !Array.from(headers).some((header) => FIELD_DEFINITIONS[field].labels.some((alias) => normalizeHeader(alias) === normalizeHeader(header)));
+  });
+
+  const invalidRows = [];
+  rawRows.forEach((row, index) => {
+    const rowNumber = index + 2;
+    const missingFields = REQUIRED_FIELDS.filter((field) => {
+      const value = normalizeFieldValue(row, field, FIELD_DEFINITIONS[field].defaultValue);
+      return isBlankish(value) || value === FIELD_DEFINITIONS[field].defaultValue;
+    });
+    if (missingFields.length) {
+      invalidRows.push({ rowNumber, missingFields });
+    }
+  });
+
+  return {
+    sourceLabel,
+    totalRows: rawRows.length,
+    normalizedRows: normalizedRows.length,
+    ignoredRows: Math.max(0, rawRows.length - normalizedRows.length),
+    missingColumns,
+    invalidRows,
+    warnings: [
+      ...(missingColumns.length ? [`Missing required columns: ${missingColumns.join(", ")}`] : []),
+      ...(invalidRows.length ? [`${invalidRows.length} row(s) contain missing required values`] : [])
+    ]
+  };
+}
+
+function prepareRows(rawRows, sourceLabel) {
+  const meaningfulRows = rawRows.filter((row) => !isCompletelyEmptyRow(row));
+  const normalizedRows = meaningfulRows.map((row, index) => buildNormalizedRow(row, index));
+  return {
+    rows: normalizedRows,
+    validationReport: buildValidationReport(rawRows, normalizedRows, sourceLabel)
+  };
 }
 
 function normalizeFieldValue(rawRow, fieldName, fallback) {
@@ -144,6 +212,7 @@ function normalizeFieldValue(rawRow, fieldName, fallback) {
     const matchedKey = headerMap[normalizeHeader(alias)];
     if (matchedKey && rawRow[matchedKey] !== undefined && rawRow[matchedKey] !== null) {
       const rawValue = rawRow[matchedKey];
+      if (isBlankish(rawValue)) return fallback;
       if (fieldName === "date") return normalizeDate(rawValue);
       if (fieldName === "response_time" || fieldName === "resolution_time") return safeNumber(rawValue, 0);
       if (fieldName === "csat" || fieldName === "nps") return safeNumber(rawValue, 0);
@@ -166,19 +235,25 @@ function buildNormalizedRow(rawRow, index) {
     const fallback = FIELD_DEFINITIONS[fieldName].defaultValue;
     baseRow[fieldName] = normalizeFieldValue(rawRow, fieldName, fallback);
   });
-  if (!baseRow.case_id || baseRow.case_id === "N/A") {
+  if (!baseRow.case_id || baseRow.case_id === "Not Available") {
     baseRow.case_id = `HT-${String(index + 1001).padStart(4, "0")}`;
   }
-  if (!baseRow.date) {
+  if (isBlankish(baseRow.date)) {
     const defaultDate = new Date();
     defaultDate.setDate(defaultDate.getDate() - (index % 30));
     baseRow.date = defaultDate.toISOString().split("T")[0];
   }
-  if (baseRow.nps === 0 || baseRow.nps === "0" || baseRow.nps === "N/A") {
+  if (isBlankish(baseRow.branch)) {
+    baseRow.branch = "Unknown Branch";
+  }
+  if (isBlankish(baseRow.service_centre)) {
+    baseRow.service_centre = "Not Assigned";
+  }
+  if (baseRow.nps === 0 || baseRow.nps === "0" || baseRow.nps === "Not Available") {
     const csat = safeNumber(baseRow.csat, 0);
     baseRow.nps = Math.max(0, Math.round(csat * 10 + 12));
   }
-  if (baseRow.csat === 0 || baseRow.csat === "0" || baseRow.csat === "N/A") {
+  if (baseRow.csat === 0 || baseRow.csat === "0" || baseRow.csat === "Not Available") {
     baseRow.csat = 4.0;
   }
   if (baseRow.response_time === 0) {
@@ -187,7 +262,7 @@ function buildNormalizedRow(rawRow, index) {
   if (baseRow.resolution_time === 0) {
     baseRow.resolution_time = 18 + (index % 12);
   }
-  if (baseRow.sla_status === "Unknown") {
+  if (baseRow.sla_status === "Not Available") {
     baseRow.sla_status = safeNumber(baseRow.response_time, 0) > 20 ? "Non-compliant" : safeNumber(baseRow.response_time, 0) > 15 ? "Near Miss" : "Compliant";
   }
   return baseRow;
@@ -423,11 +498,14 @@ function render() {
   renderCharts(rows);
   renderCaseTable(visibleRows, rows.length);
   renderPagination(rows.length, totalPages);
+  renderValidationReport();
 }
 
 function renderKpis(rows) {
   const openCases = rows.filter((row) => getText(row, "status") !== "Closed").length;
   const closedCases = rows.filter((row) => getText(row, "status") === "Closed").length;
+  const pendingCases = rows.filter((row) => getText(row, "status") === "Pending Customer" || getText(row, "status") === "Not Available").length;
+  const escalatedCases = rows.filter((row) => getText(row, "status") === "Escalated").length;
   const avgResponse = average(rows.map((row) => getNumber(row, "response_time"))).toFixed(1);
   const avgResolution = average(rows.map((row) => getNumber(row, "resolution_time"))).toFixed(1);
   const slaCompliance = rows.length ? ((rows.filter((row) => getText(row, "sla_status") === "Compliant").length / rows.length) * 100).toFixed(1) : "0.0";
@@ -442,6 +520,8 @@ function renderKpis(rows) {
     { label: "Total customer cases", value: rows.length, target: 180, previous: Math.max(0, rows.length - 10), positive: true },
     { label: "Open cases", value: openCases, target: 30, previous: Math.max(0, openCases + 3), positive: openCases < 30 },
     { label: "Closed cases", value: closedCases, target: 140, previous: Math.max(0, closedCases - 4), positive: closedCases > 120 },
+    { label: "Pending cases", value: pendingCases, target: 20, previous: Math.max(0, pendingCases + 2), positive: pendingCases <= 20 },
+    { label: "Escalated cases", value: escalatedCases, target: 8, previous: Math.max(0, escalatedCases + 1), positive: escalatedCases <= 8 },
     { label: "Cases resolved today", value: closedCases, target: 24, previous: Math.max(0, closedCases - 2), positive: closedCases >= 24 },
     { label: "Average response time", value: `${avgResponse} min`, target: "15 min", previous: `${(safeNumber(avgResponse) + 2).toFixed(1)} min`, positive: safeNumber(avgResponse) < 15 },
     { label: "Average resolution time", value: `${avgResolution} hrs`, target: "48 hrs", previous: `${(safeNumber(avgResolution) + 1).toFixed(1)} hrs`, positive: safeNumber(avgResolution) < 48 },
@@ -610,10 +690,10 @@ function renderActionTracker() {
 }
 
 function renderManagementInsights(rows) {
-  const branchCounts = rows.reduce((acc, row) => { const branch = getText(row, "branch", "Unassigned"); acc[branch] = (acc[branch] || 0) + 1; return acc; }, {});
-  const topBranch = Object.entries(branchCounts).sort((a, b) => b[1] - a[1])[0] || ["N/A", 0];
-  const serviceScores = rows.reduce((acc, row) => { const serviceCentre = getText(row, "service_centre", "Unassigned"); acc[serviceCentre] = acc[serviceCentre] || []; acc[serviceCentre].push(getNumber(row, "csat", 0)); return acc; }, {});
-  const lowService = Object.entries(serviceScores).map(([name, scores]) => [name, average(scores)]).sort((a, b) => a[1] - b[1])[0] || ["N/A", 0];
+  const branchCounts = rows.reduce((acc, row) => { const branch = getText(row, "branch", "Unknown Branch"); acc[branch] = (acc[branch] || 0) + 1; return acc; }, {});
+  const topBranch = Object.entries(branchCounts).sort((a, b) => b[1] - a[1])[0] || ["No data", 0];
+  const serviceScores = rows.reduce((acc, row) => { const serviceCentre = getText(row, "service_centre", "Not Assigned"); acc[serviceCentre] = acc[serviceCentre] || []; acc[serviceCentre].push(getNumber(row, "csat", 0)); return acc; }, {});
+  const lowService = Object.entries(serviceScores).map(([name, scores]) => [name, average(scores)]).sort((a, b) => a[1] - b[1])[0] || ["No data", 0];
   const slaIssues = rows.filter((row) => getText(row, "sla_status") === "Non-compliant").length;
   const escalations = rows.filter((row) => getText(row, "escalation_level") !== "Level 0").length;
   const repeats = rows.filter((row) => getText(row, "repeat_complaint") === "Yes").length;
@@ -626,6 +706,19 @@ function renderManagementInsights(rows) {
     "Recommended management action: prioritize service recovery outreach, branch-level coaching, and a daily review of high-risk tickets."
   ];
   document.getElementById("managementInsights").innerHTML = insights.map((insight) => `<div class="insight-item">${insight}</div>`).join("");
+}
+
+function renderValidationReport() {
+  const report = state.validationReport;
+  const container = document.getElementById("validationReport");
+  if (!container) return;
+  if (!report) {
+    container.innerHTML = '<div class="validation-report-item"><strong>No validation report yet.</strong><div>Upload a workbook or CSV to generate a quality audit.</div></div>';
+    return;
+  }
+  const warningsMarkup = report.warnings.length ? report.warnings.map((warning) => `<div class="validation-report-item"><strong>Warning</strong><div>${warning}</div></div>`).join("") : '<div class="validation-report-item"><strong>Quality check</strong><div>No warnings detected.</div></div>';
+  const invalidRowsMarkup = report.invalidRows.length ? report.invalidRows.map((item) => `<div class="validation-report-item"><strong>Row ${item.rowNumber}</strong><div>Missing values: ${item.missingFields.join(", ")}</div></div>`).join("") : '<div class="validation-report-item"><strong>Rows</strong><div>All rows contain the required fields.</div></div>';
+  container.innerHTML = `<div class="validation-report-list">${warningsMarkup}${invalidRowsMarkup}<div class="validation-report-item"><strong>Source</strong><div>${report.sourceLabel}</div></div><div class="validation-report-item"><strong>Summary</strong><div>${report.totalRows} rows received, ${report.normalizedRows} normalized, ${report.ignoredRows} ignored as empty.</div></div></div>`;
 }
 
 function renderCaseTable(rows, totalRows) {
@@ -682,11 +775,11 @@ function populateFilters(rows) {
   const categorySelect = document.getElementById("categoryFilter");
   const statusSelect = document.getElementById("statusFilter");
   const customerTypeSelect = document.getElementById("customerTypeFilter");
-  const branchOptions = [...new Set(rows.map((row) => getText(row, "branch", "Unassigned")))].sort();
-  const serviceOptions = [...new Set(rows.map((row) => getText(row, "service_centre", "Unassigned")))].sort();
-  const categoryOptions = [...new Set(rows.map((row) => getText(row, "complaint_category", "Uncategorized")))].sort();
-  const statusOptions = [...new Set(rows.map((row) => getText(row, "status", "Open")))].sort();
-  const customerTypeOptions = [...new Set(rows.map((row) => getText(row, "customer_type", "Unknown")))].sort();
+  const branchOptions = [...new Set(rows.map((row) => getText(row, "branch", "Unknown Branch")).filter((value) => value && value !== "Not Available"))].sort();
+  const serviceOptions = [...new Set(rows.map((row) => getText(row, "service_centre", "Not Assigned")).filter((value) => value && value !== "Not Available"))].sort();
+  const categoryOptions = [...new Set(rows.map((row) => getText(row, "complaint_category", "Not Available")).filter((value) => value && value !== "Not Available"))].sort();
+  const statusOptions = [...new Set(rows.map((row) => getText(row, "status", "Not Available")).filter((value) => value && value !== "Not Available"))].sort();
+  const customerTypeOptions = [...new Set(rows.map((row) => getText(row, "customer_type", "Unknown")).filter((value) => value && value !== "Not Available"))].sort();
   branchSelect.innerHTML = ["", ...branchOptions].map((value) => `<option value="${value}">${value || "All branches"}</option>`).join("");
   serviceSelect.innerHTML = ["", ...serviceOptions].map((value) => `<option value="${value}">${value || "All centres"}</option>`).join("");
   categorySelect.innerHTML = ["", ...categoryOptions].map((value) => `<option value="${value}">${value || "All categories"}</option>`).join("");
@@ -721,14 +814,14 @@ function bindEvents() {
     if (!file) return;
     try {
       const uploadedRows = await parseUploadedFile(file);
-      if (uploadedRows.length) {
-        state.rows = uploadedRows;
-        state.filteredRows = uploadedRows;
-        state.sourceLabel = file.name;
-        populateFilters(state.rows);
-        render();
-        document.getElementById("lastUpdated").textContent = new Date().toLocaleString();
-      }
+      const prepared = prepareRows(uploadedRows, file.name);
+      state.rows = prepared.rows;
+      state.filteredRows = prepared.rows;
+      state.sourceLabel = file.name;
+      state.validationReport = prepared.validationReport;
+      populateFilters(state.rows);
+      render();
+      document.getElementById("lastUpdated").textContent = new Date().toLocaleString();
     } catch (error) {
       console.error(error);
       alert(`Unable to read the selected file. Please use a CSV or Excel workbook with standard column headers. ${error.message}`);
@@ -740,11 +833,12 @@ async function loadSampleData() {
   try {
     const response = await fetch("sample-data.csv");
     if (!response.ok) throw new Error("Unable to fetch sample data");
-    const rows = normalizeRows(parseCSV(await response.text()));
-    if (rows.length) {
-      state.rows = rows;
-      state.filteredRows = rows;
+    const prepared = prepareRows(normalizeRows(parseCSV(await response.text())), "sample-data.csv");
+    if (prepared.rows.length) {
+      state.rows = prepared.rows;
+      state.filteredRows = prepared.rows;
       state.sourceLabel = "sample-data.csv";
+      state.validationReport = prepared.validationReport;
       populateFilters(state.rows);
       render();
       document.getElementById("lastUpdated").textContent = new Date().toLocaleString();
@@ -753,9 +847,12 @@ async function loadSampleData() {
   } catch (error) {
     console.warn("Falling back to built-in sample data", error);
   }
-  state.rows = buildSampleRows(120);
-  state.filteredRows = state.rows;
+  const sampleRows = buildSampleRows(120);
+  const prepared = prepareRows(sampleRows, "Built-in sample data");
+  state.rows = prepared.rows;
+  state.filteredRows = prepared.rows;
   state.sourceLabel = "Built-in sample data";
+  state.validationReport = prepared.validationReport;
   populateFilters(state.rows);
   render();
   document.getElementById("lastUpdated").textContent = new Date().toLocaleString();

@@ -433,6 +433,23 @@ button:hover {
   border-radius: 10px;
 }
 
+.validation-report-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.validation-report-item {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #fcfcfd;
+}
+
+.validation-report-item strong {
+  display: block;
+  margin-bottom: 0.35rem;
+}
+
 @media (max-width: 1080px) {
   .filter-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
