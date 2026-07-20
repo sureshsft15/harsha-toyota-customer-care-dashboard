@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Harsha Toyota Customer Care Dashboard</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="page-header card">
+        <div class="brand-block">
+          <div class="brand-badge">HT</div>
+          <div>
+            <h1>Harsha Toyota Customer Care Dashboard</h1>
+            <p>Customer Experience Command Centre</p>
+          </div>
+        </div>
+        <div class="header-meta">
+          <div class="status-pill">
+            <span class="status-dot"></span>
+            <span>Live Operations</span>
+          </div>
+          <div>
+            <strong>Current date</strong>
+            <span id="currentDate">--</span>
+          </div>
+          <div>
+            <strong>Last updated</strong>
+            <span id="lastUpdated">--</span>
+          </div>
+        </div>
+      </header>
+
+      <section class="filter-panel card">
+        <div class="filter-grid">
+          <label>
+            <span>Date period</span>
+            <select id="datePeriod">
+              <option value="all">All time</option>
+              <option value="7">Last 7 days</option>
+              <option value="30">Last 30 days</option>
+              <option value="90">Last 90 days</option>
+              <option value="month">This month</option>
+              <option value="year">This year</option>
+            </select>
+          </label>
+          <label>
+            <span>Sales branch</span>
+            <select id="branchFilter"></select>
+          </label>
+          <label>
+            <span>Service centre</span>
+            <select id="serviceFilter"></select>
+          </label>
+          <label>
+            <span>Complaint category</span>
+            <select id="categoryFilter"></select>
+          </label>
+          <label>
+            <span>Case status</span>
+            <select id="statusFilter"></select>
+          </label>
+          <label>
+            <span>Customer type</span>
+            <select id="customerTypeFilter"></select>
+          </label>
+        </div>
+        <div class="filter-actions">
+          <button id="resetFilters" class="secondary">Reset Filters</button>
+          <button id="refreshDashboard" class="secondary">Refresh Dashboard</button>
+          <button id="downloadCsv" class="primary">Download CSV Report</button>
+          <button id="printDashboard" class="secondary">Print Dashboard</button>
+          <label class="upload-btn">
+            <span>Upload CSV</span>
+            <input type="file" id="csvUpload" accept=".csv" />
+          </label>
+        </div>
+      </section>
+
+      <section class="kpi-grid" id="kpiGrid"></section>
+
+      <main class="dashboard-grid">
+        <section class="card section-card">
+          <div class="section-title">Executive Summary</div>
+          <div id="executiveSummary" class="summary-grid"></div>
+        </section>
+
+        <section class="card section-card">
+          <div class="section-title">Case Volume Trend</div>
+          <div class="chart-grid">
+            <div class="chart-card">
+              <h3>Seven-day case intake</h3>
+              <div id="chartSevenDay" class="chart-shell"></div>
+            </div>
+            <div class="chart-card">
+              <h3>Monthly complaints trend</h3>
+              <div id="chartMonthly" class="chart-shell"></div>
+            </div>
+            <div class="chart-card">
+              <h3>Open vs closed cases</h3>
+              <div id="chartOpenClosed" class="chart-shell"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card section-card">
+          <div class="section-title">Branch Performance</div>
+          <div id="branchPerformance" class="chart-shell"></div>
+        </section>
+
+        <section class="card section-card">
+          <div class="section-title">Service Centre Performance</div>
+          <div id="servicePerformance" class="chart-shell"></div>
+        </section>
+
+        <section class="card section-card">
+          <div class="section-title">Complaint Category Analysis</div>
+          <div id="categoryAnalysis" class="chart-shell"></div>
+        </section>
+
+        <section class="card section-card">
+          <div class="section-title">Customer Sentiment</div>
+          <div id="sentimentAnalysis" class="chart-shell"></div>
+        </section>
+
+        <section class="card section-card">
+          <div class="section-title">SLA Performance</div>
+          <div id="slaPerformance" class="chart-shell"></div>
+        </section>
+
+        <section class="card section-card">
+          <div class="section-title">Escalation Monitoring</div>
+          <div id="escalationMonitoring" class="chart-shell"></div>
+        </section>
+
+        <section class="card section-card">
+          <div class="section-title">Repeat Complaint Analysis</div>
+          <div id="repeatAnalysis" class="chart-shell"></div>
+        </section>
+
+        <section class="card section-card">
+          <div class="section-title">Customer Follow-Up Status</div>
+          <div id="followUpStatus" class="chart-shell"></div>
+        </section>
+
+        <section class="card section-card">
+          <div class="section-title">Voice of Customer</div>
+          <div id="voiceOfCustomer" class="list-stack"></div>
+        </section>
+
+        <section class="card section-card">
+          <div class="section-title">Management Action Tracker</div>
+          <div id="actionTracker" class="table-wrap"></div>
+        </section>
+
+        <section class="card section-card">
+          <div class="section-title">Management Insights</div>
+          <div id="managementInsights" class="insight-list"></div>
+        </section>
+
+        <section class="card section-card">
+          <div class="section-title">Customer Case Table</div>
+          <div class="table-toolbar">
+            <input id="searchInput" type="search" placeholder="Search case ID, customer, or vehicle" />
+          </div>
+          <div id="caseTable" class="table-wrap"></div>
+          <div id="pagination" class="pagination"></div>
+        </section>
+      </main>
+    </div>
+    <script src="script.js"></script>
+  </body>
+</html>
