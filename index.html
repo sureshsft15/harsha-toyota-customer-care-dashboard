@@ -72,8 +72,8 @@
           <button id="downloadCsv" class="primary">Download CSV Report</button>
           <button id="printDashboard" class="secondary">Print Dashboard</button>
           <label class="upload-btn">
-            <span>Upload CSV</span>
-            <input type="file" id="csvUpload" accept=".csv" />
+            <span>Upload Excel / CSV</span>
+            <input type="file" id="csvUpload" accept=".csv,.xlsx,.xls,.xlsm" />
           </label>
         </div>
       </section>
@@ -169,6 +169,7 @@
         </section>
       </main>
     </div>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.3/dist/xlsx.full.min.js"></script>
     <script src="script.js"></script>
   </body>
 </html>

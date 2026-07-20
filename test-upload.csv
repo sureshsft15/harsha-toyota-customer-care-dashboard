@@ -1,0 +1,3 @@
+Customer Name,Vehicle Registration Number,Case Status,Branch,Service Center,Response Time (Minutes),Resolution Time (Hours),CSAT Score,NPS Score,Complaint Category,Complaint Description
+Asha Menon,KA01AB1234,Open,Branch 2,Service Center 3,12,24,4.5,68,Service Delay,Delayed delivery and poor communication
+Rohan Gupta,KA05CD5678,Closed,Branch 1,Service Center 1,8,16,4.8,72,Vehicle Delivery,Vehicle delivered late with missing accessories
