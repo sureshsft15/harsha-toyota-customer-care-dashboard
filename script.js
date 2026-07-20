@@ -46,7 +46,7 @@ const FIELD_DEFINITIONS = {
   repeat_complaint: { labels: ["repeat complaint", "repeat_complaint", "repeat"], defaultValue: "No" }
 };
 
-const REQUIRED_FIELDS = ["customer_name", "status", "branch", "service_centre", "complaint_category", "date"];
+const REQUIRED_FIELDS = ["case_id", "date", "customer_name", "branch", "service_centre", "vehicle_registration_number", "vehicle_model"];
 
 const state = {
   rows: [],
@@ -72,6 +72,10 @@ function normalizeHeader(value) {
     .toLowerCase()
     .replace(/centre/g, "center")
     .replace(/[^a-z0-9]+/g, "");
+}
+
+function normalizeSheetName(value) {
+  return normalizeHeader(value).replace(/sheet/g, "");
 }
 
 function headerMatchesAlias(header, alias) {
@@ -282,6 +286,24 @@ function logWorkbookDiagnostics(workbook, detectedSheet) {
 
 function detectCaseDataSheet(workbook) {
   const sheetNames = workbook.SheetNames || [];
+  const exactCustomerSheet = sheetNames.find((sheetName) => normalizeSheetName(sheetName) === "customercases");
+  if (exactCustomerSheet) {
+    const sheet = workbook.Sheets[exactCustomerSheet];
+    const sheetRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+    const headerRowIndex = findHeaderRowIndex(sheetRows);
+    const headerRow = headerRowIndex >= 0 ? sheetRows[headerRowIndex] : [];
+    return {
+      sheetName: exactCustomerSheet,
+      sheet,
+      sheetRows,
+      headerRowIndex,
+      headerScore: scoreHeaderRow(headerRow),
+      combinedScore: 999,
+      headerRow,
+      dataRowCount: Math.max(0, sheetRows.length - headerRowIndex - 1)
+    };
+  }
+
   const sheetCandidates = sheetNames.map((sheetName) => {
     const sheet = workbook.Sheets[sheetName];
     const sheetRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
@@ -333,8 +355,15 @@ function buildRowsFromSheet(sheet, sheetName) {
     return row;
   }).filter((row) => !isCompletelyEmptyRow(row));
   const mapping = buildHeaderMapping(headers);
+  const missingRequiredFields = REQUIRED_FIELDS.filter((fieldName) => !mapping[fieldName]);
   state.headerMappings = Object.entries(mapping).map(([fieldName, header]) => ({ internalField: fieldName, excelColumn: header || "—" }));
   logHeaderMapping(sheetName, mapping);
+  if (missingRequiredFields.length) {
+    const message = `Missing required columns: ${missingRequiredFields.join(", ")}`;
+    console.error(message);
+    alert(message);
+    throw new Error(message);
+  }
   return dataRows;
 }
 
@@ -358,6 +387,9 @@ function buildNormalizedRow(rawRow, index) {
   if (isBlankish(baseRow.service_centre)) {
     baseRow.service_centre = "Not Available";
   }
+  baseRow.serviceCentre = baseRow.service_centre;
+  baseRow.customerName = baseRow.customer_name;
+  baseRow.registration = baseRow.vehicle_registration_number;
   if (baseRow.nps === 0 || baseRow.nps === "0" || baseRow.nps === "Not Available") {
     const csat = safeNumber(baseRow.csat, 0);
     baseRow.nps = Math.max(0, Math.round(csat * 10 + 12));
@@ -454,8 +486,14 @@ async function parseUploadedFile(file) {
     const data = await file.arrayBuffer();
     const workbook = window.XLSX.read(data, { type: "array" });
     const detectedSheet = detectCaseDataSheet(workbook);
+    const detectedColumnNames = detectedSheet.headerRow || [];
+    const importedRows = buildRowsFromSheet(detectedSheet.sheet, detectedSheet.sheetName);
+    console.log("Selected worksheet name:", detectedSheet.sheetName);
+    console.log("Header row detected:", detectedSheet.headerRow || []);
+    console.log("Complete array of detected column names:", detectedColumnNames);
+    console.log("First imported record:", importedRows[0] || null);
     logWorkbookDiagnostics(workbook, detectedSheet);
-    return buildRowsFromSheet(detectedSheet.sheet, detectedSheet.sheetName);
+    return importedRows;
   }
   return [];
 }
